@@ -2,49 +2,11 @@
     "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
     "contentVersion": "1.0.0.0",
     "parameters": {
-        "functionAppName": {
-            "defaultValue": "[format('func-{0}', uniqueString(resourceGroup().id))]",
-            "type": "String",
-            "metadata": {
-                "description": "The name of the Azure Function app."
-            }
-        },
-        "storageAccountType": {
-            "defaultValue": "Standard_LRS",
-            "allowedValues": [
-                "Standard_LRS",
-                "Standard_GRS",
-                "Standard_RAGRS"
-            ],
-            "type": "String",
-            "metadata": {
-                "description": "Storage Account type"
-            }
-        },
         "location": {
-            "defaultValue": "[resourceGroup().location]",
+            "defaultValue": "",
             "type": "String",
             "metadata": {
-                "description": "Location for all resources."
-            }
-        },
-        "functionWorkerRuntime": {
-            "defaultValue": "node",
-            "allowedValues": [
-                "dotnet",
-                "node",
-                "python",
-                "java"
-            ],
-            "type": "String",
-            "metadata": {
-                "description": "The language worker runtime to load in the function app."
-            }
-        },
-        "packageUri": {
-            "type": "String",
-            "metadata": {
-                "description": "The zip content url."
+                "description": "Location for all resources. Default value is taken as the location in which resource group is deployed"
             }
         },
         "impactActionGroupName": {
@@ -53,18 +15,24 @@
         }
     },
     "variables": {
-        "hostingPlanName": "[parameters('functionAppName')]",
-        "applicationInsightsName": "[parameters('functionAppName')]",
-        "storageAccountName": "[format('{0}azfunctions', uniqueString(resourceGroup().id))]"
+        "functionAppName": "[format('func-{0}', uniqueString(resourceGroup().id))]",
+        "hostingPlanName": "[variables('functionAppName')]",
+        "applicationInsightsName": "[variables('functionAppName')]",
+        "storageAccountName": "[format('{0}azfunctions', uniqueString(resourceGroup().id))]",
+        "storageAccountType": "Standard_LRS",
+        "functionWorkerRuntime": "dotnet",
+        "defaultLocation": "[resourceGroup().location]",
+        "location": "[if(equals(parameters('location'), ''), variables('defaultLocation'), parameters('location'))]",
+        "packageUri": "https://github.com/chand45/TestRepo2/raw/main/GettingStartedWithFunctionApp%20-%2020231211135527275.zip"
     },
     "resources": [
         {
             "type": "Microsoft.Storage/storageAccounts",
             "apiVersion": "2022-05-01",
             "name": "[variables('storageAccountName')]",
-            "location": "[parameters('location')]",
+            "location": "[variables('location')]",
             "sku": {
-                "name": "[parameters('storageAccountType')]"
+                "name": "[variables('storageAccountType')]"
             },
             "kind": "Storage"
         },
@@ -72,7 +40,7 @@
             "type": "Microsoft.Web/serverfarms",
             "apiVersion": "2022-03-01",
             "name": "[variables('hostingPlanName')]",
-            "location": "[parameters('location')]",
+            "location": "[variables('location')]",
             "sku": {
                 "name": "Y1",
                 "tier": "Dynamic",
@@ -87,7 +55,7 @@
             "type": "Microsoft.Insights/components",
             "apiVersion": "2020-02-02",
             "name": "[variables('applicationInsightsName')]",
-            "location": "[parameters('location')]",
+            "location": "[variables('location')]",
             "tags": {
                 "[format('hidden-link:{0}', resourceId('Microsoft.Web/sites', variables('applicationInsightsName')))]": "Resource"
             },
@@ -99,8 +67,8 @@
         {
             "type": "Microsoft.Web/sites",
             "apiVersion": "2022-03-01",
-            "name": "[parameters('functionAppName')]",
-            "location": "[parameters('location')]",
+            "name": "[variables('functionAppName')]",
+            "location": "[variables('location')]",
             "dependsOn": [
                 "[resourceId('Microsoft.Insights/components', variables('applicationInsightsName'))]",
                 "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
@@ -125,7 +93,7 @@
                         },
                         {
                             "name": "WEBSITE_CONTENTSHARE",
-                            "value": "[toLower(parameters('functionAppName'))]"
+                            "value": "[toLower(variables('functionAppName'))]"
                         },
                         {
                             "name": "FUNCTIONS_EXTENSION_VERSION",
@@ -133,7 +101,7 @@
                         },
                         {
                             "name": "FUNCTIONS_WORKER_RUNTIME",
-                            "value": "[parameters('functionWorkerRuntime')]"
+                            "value": "[variables('functionWorkerRuntime')]"
                         },
                         {
                             "name": "WEBSITE_NODE_DEFAULT_VERSION",
@@ -150,12 +118,12 @@
         {
             "type": "Microsoft.Web/sites/extensions",
             "apiVersion": "2022-03-01",
-            "name": "[format('{0}/{1}', parameters('functionAppName'), 'zipdeploy')]",
+            "name": "[format('{0}/{1}', variables('functionAppName'), 'zipdeploy')]",
             "dependsOn": [
-                "[resourceId('Microsoft.Web/sites', parameters('functionAppName'))]"
+                "[resourceId('Microsoft.Web/sites', variables('functionAppName'))]"
             ],
             "properties": {
-                "packageUri": "[parameters('packageUri')]"
+                "packageUri": "[variables('packageUri')]"
             }
         },
         {
@@ -164,7 +132,7 @@
             "name": "[parameters('impactActionGroupName')]",
             "location": "Global",
             "dependsOn": [
-                "[concat(resourceId('Microsoft.Web/sites', parameters('functionAppName')),'/extensions/zipdeploy')]"
+                "[concat(resourceId('Microsoft.Web/sites', variables('functionAppName')),'/extensions/zipdeploy')]"
             ],
             "tags": {
                 "ConnectorIntegration": "true"
@@ -190,9 +158,9 @@
                 "azureFunctionReceivers": [
                     {
                         "name": "ConnectorFunction",
-                        "functionAppResourceId": "[resourceId('Microsoft.Web/sites', parameters('functionAppName'))]",
+                        "functionAppResourceId": "[resourceId('Microsoft.Web/sites', variables('functionAppName'))]",
                         "functionName": "TestingAzureFunctions",
-                        "httpTriggerUrl": "[concat('https://', parameters('functionAppName'), '.azurewebsites.net/api/TestingAzureFunctions')]",
+                        "httpTriggerUrl": "[concat('https://', variables('functionAppName'), '.azurewebsites.net/api/TestingAzureFunctions')]",
                         "useCommonAlertSchema": true
                     }
                 ],
